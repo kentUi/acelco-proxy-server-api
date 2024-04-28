@@ -11,6 +11,7 @@ class Billing extends CI_Model
             ->where('tbl_billing_copy.bill_account_number IS NULL')
             ->or_where('tbl_billing_copy.bill_amount != tbl_billing.NetAmount')
             ->get();
+
         return $query->result();
     }
 
@@ -58,7 +59,7 @@ class Billing extends CI_Model
             }
             
         } else {
-            echo "No data found.";
+            echo "No data found..";
         }
         
     }
