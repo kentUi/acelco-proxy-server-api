@@ -7,7 +7,7 @@ use Firebase\JWT\Key;
 
 class AccessTokenGenerator
 {
-    public static function generateToken()
+    public static function generateToken($whoIS)
     {
         // Secret key = @selco-d3vel0pment-k3y6en (SHA256)
         // URL = https://emn178.github.io/online-tools/sha256.html
@@ -17,8 +17,7 @@ class AccessTokenGenerator
         $nonce = bin2hex(openssl_random_pseudo_bytes(255));
 
         $payload = array(
-            "user_id" => 123456,
-            "username" => "example_user",
+            "source" => $whoIS,
             "nonce" => $nonce,
             "exp" => time() + (60 * 60) // Token expiration time (1 hour from now),
         );
@@ -49,7 +48,23 @@ class DataReceiver
 
             $data = json_decode(file_get_contents('php://input'), true);
 
-            return json_encode(array("response" => "Data received successfully", "users" => $decoded, "data" => $data));
+            $user = json_encode($decoded);
+            $source = json_decode($user, true);
+
+            $incomming_payments = array(
+                'Source' => $source['source'],
+                'ReferenceNo' => $data['reference-number'],
+                'AccountNumber' => $data['account-number'],
+                'ServicePeriod' => $data['service-period'],
+                'TransAmount' => $data['amount-transaction'],
+                'TransDate' => date_format(date_create($data['date-transaction']), 'Y-m-d'),
+                'TransTime' => date_format(date_create($data['date-transaction']), 'h:i A'),
+                'DateReported' => $data['date-reported'],
+                'CustomerNote' => $data['customer-note'],
+                'Status' => $data['status']
+            );
+            
+            return json_encode(array("response" => "Data received successfully", "users" => $decoded, "data" => $data, 'insert' => $incomming_payments ));
         } catch (Exception $e) {
 
             http_response_code(401);
@@ -63,20 +78,39 @@ class Payments extends CI_Model
 
     public function login()
     {
-        $access_token = AccessTokenGenerator::generateToken();
-        return $access_token;
+        $data = json_decode(file_get_contents('php://input'));
+        if ($data) {
+            $validate = $this->db->where('ss_client_key', $data->client_key);
+            $validate = $this->db->get('tbl_credentials');
+
+            if ($validate->num_rows() == 1) {
+                $access_token = AccessTokenGenerator::generateToken($validate->row()->ss_name);
+                return ['name' => $validate->row()->ss_name, 'access_token' => $access_token, 'status' => 200];
+            } else {
+                http_response_code(401);
+                return ['Unauthorized' => 'Invalid Client Key. Please try again. Thank you.', 'status' => 401];
+            }
+        }
     }
 
     public function receiver()
     {
-        $receiver = DataReceiver::receiveData();
+        error_reporting(0);
 
-        $response = json_decode($receiver, true);
-        $client = $response['users'];
-        $data = $response['data'];
-        
-        echo $client['username'];
-        echo $response['response'];
-        echo json_encode($data);
+        $data_payment = json_decode(file_get_contents('php://input'));
+        if ($data_payment) {
+            $receiver = DataReceiver::receiveData();
+
+            $response = json_decode($receiver, true);
+
+            $client = $response['users'];
+            $data = $response['data'];
+
+            if($client['source'] != null || !empty($client['source'])){
+                $this->db->insert('tbl_incoming_bills', $response['insert']);
+            }
+
+            echo json_encode(['source' => $client['source'], 'data' => $data]);
+        }
     }
 }

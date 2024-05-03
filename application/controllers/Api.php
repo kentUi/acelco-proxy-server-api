@@ -6,7 +6,8 @@ class Api extends CI_Controller
     public $db;
     public $Billing;
     public $Payments;
-    public function __construct(){
+    public function __construct()
+    {
         parent::__construct();
         header("Content-type: application/json; charset=UTF-8");
         header("Access-Control-Allow-Origin: *");
@@ -35,7 +36,7 @@ class Api extends CI_Controller
                 ];
 
                 $this->Billing->saveBilling($copy);
-            }            
+            }
 
             $client_id = "2e869a44bf017f57";
             $client_secret = "06a07d98da022235935b9cbd4646a111dc831a3622bbe983edde8b452369bd7b";
@@ -81,9 +82,9 @@ class Api extends CI_Controller
 
             $this->load->model('Billing');
             $forward = $this->Billing->forwardBilling($billing);
-            
+
             $this->db->where('bill_status', 0)->update('tbl_billing_copy', ['bill_status' => 1]);
-            
+
             echo json_encode(['response' => $forward]);
         }
     }
@@ -93,7 +94,7 @@ class Api extends CI_Controller
         $this->load->model('Payments');
         $receiver = $this->Payments->login();
 
-        echo json_encode(['access_token' => $receiver]);
+        echo json_encode($receiver);
     }
 
     public function payments()
@@ -104,17 +105,78 @@ class Api extends CI_Controller
         return $response;
     }
 
-    public function billing()
-	{
+    public function client_key_registration()
+    {
 
         $data = json_decode(file_get_contents('php://input'));
-		// if ($data) {
-		    			
-		    $this->load->model('Billing');
-            $forward = $this->Billing->getBilling();
-            
-            echo json_encode($forward);
-		//}
-	}
+        if ($data) {
 
+            $key = $this->db->insert('tbl_credentials', ['ss_client_key ' => $data->key, 'ss_name' => $data->name]);
+            echo json_encode($key);
+            
+        }
+    }
+
+    public function keys()
+    {
+
+        $data = json_decode(file_get_contents('php://input'));
+        if ($data) {
+
+            $keys = $this->db->get('tbl_credentials')->result();
+            echo json_encode($keys);
+        }
+    }
+
+    public function billing()
+    {
+
+        $data = json_decode(file_get_contents('php://input'));
+        if ($data) {
+
+            $this->load->model('Billing');
+            $forward = $this->Billing->getBilling();
+
+            echo json_encode($forward);
+        }
+    }
+
+    public function figures()
+    {
+
+        $data = json_decode(file_get_contents('php://input'));
+        if ($data) {
+
+            $pending = $this->db->where('isForwarded', 0)->get('tbl_billing')->num_rows();
+            $overall = $this->db->get('tbl_billing')->num_rows();
+            $incomming = $this->db->get('tbl_incoming_bills')->num_rows();
+
+            echo json_encode(['pending' => ($overall - $pending), 'overall' => $overall, 'incoming' => $incomming]);
+        }
+    }
+
+
+    public function incoming()
+    {
+
+        $data = json_decode(file_get_contents('php://input'));
+        if ($data) {
+
+            $incoming = $this->db->get('tbl_incoming_bills')->result();
+            echo json_encode($incoming);
+
+        }
+    }
+
+    public function copy()
+    {
+
+        $data = json_decode(file_get_contents('php://input'));
+        if ($data) {
+
+            $incoming = $this->db->get('tbl_billing_copy')->result();
+            echo json_encode($incoming);
+            
+        }
+    }
 }
